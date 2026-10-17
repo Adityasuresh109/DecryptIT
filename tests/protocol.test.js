@@ -18,9 +18,9 @@ function fixture(n=25){
  return {room,ctx,r,db,sockets,ws,auth,action,last};
 }
 
-test('Worker refuses create while exact word pack is unavailable and reports health',async()=>{
- const env={};const h=await worker.fetch(new Request('https://relay.test/health'),env);assert.equal((await h.json()).wordPacksReady,false);
- // We exercise room.create independently because the production Worker binding is not configured here.
+test('Worker reports production word pack ready for live room creation',async()=>{
+ const env={};const h=await worker.fetch(new Request('https://relay.test/health'),env);assert.equal((await h.json()).wordPacksReady,true);
+ // Room creation uses the same validated curated pack in the deployed Worker.
 });
 
 test('25 real-protocol simulated clients join, vote nine agents to win, inspect their outgoing WS messages',async()=>{
