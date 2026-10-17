@@ -1,4 +1,4 @@
-name: Agency quality gate
+name: DecryptIT quality gate
 on:
   push:
     branches: [main]
