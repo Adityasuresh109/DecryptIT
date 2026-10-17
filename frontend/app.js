@@ -7,14 +7,34 @@ const MODE_LABEL={family:'Family Friendly',nsfw:'NSFW',mixed:'Mixed Bag'};
 const COLOR_LABEL={RED:'Red',BLUE:'Blue',BYSTANDER:'Civilian',ASSASSIN:'Assassin'};
 const noticeLabels={TIME_UP:'TIME’S UP — TURN PASSED',ASSASSIN:'ASSASSIN FOUND',CLUE_VOIDED:'CLUE VOIDED — TURN PASSED',WRONG_CARD:'WRONG CARD — TURN PASSED',BUDGET_EXHAUSTED:'NO GUESSES REMAIN — TURN PASSED',TEAM_DONE:'TEAM DONE — GUESSES BANKED',RESHUFFLED:'NEW BOARD — FRESH START'};
 const base=(window.DECRYPTIT_WORKER_URL||window.AGENCY_WORKER_URL||'').replace(/\/$/,'');
-const ui={mode:'family',bestOf:3,timer:120,rules:false,role:null,code:'',token:'',screen:null,snapshot:null,status:'offline',error:'',hostTool:null,clueWord:'',clueNumber:2,connection:null,retry:0,retryTimer:null,ping:null,serverSkew:0};
+const ui={mode:'family',bestOf:3,timer:120,rules:false,role:null,code:'',token:'',screen:null,snapshot:null,status:'offline',health:base?'checking':'unavailable',error:'',hostTool:null,clueWord:'',clueNumber:2,connection:null,retry:0,retryTimer:null,ping:null,serverSkew:0};
 const hashInfo=()=>{const hash=decodeURIComponent(location.hash.slice(1));const i=hash.indexOf('=');return i>0?{kind:hash.slice(0,i),code:hash.slice(i+1).trim().toUpperCase()}:{kind:null,code:''};};
 const urlFor=(code,kind='join')=>`${location.origin}${location.pathname}#${kind}=${code}`;
 const storageKey=(code,role)=>`agency:${code}:${role}`;
 const getSaved=(code,role)=>{try{return localStorage.getItem(storageKey(code,role));}catch{return null;}};
 const save=(code,role,token)=>{try{localStorage.setItem(storageKey(code,role),token);}catch{showToast('Storage blocked — refresh may lose your seat. Allow site storage.');}};
 function showToast(message){const el=$('#toast');if(!el)return;el.textContent=message;el.hidden=false;clearTimeout(showToast.timeout);showToast.timeout=setTimeout(()=>{el.hidden=true;},8500);}
-const brand=()=>`<header class="masthead"><a class="brand" href="${esc(location.pathname)}">AD <span>ARCADE</span> / DecryptIT</a><span class="connection ${ui.status}">${esc(ui.status==='online'?'● SECURE CHANNEL':ui.status==='connecting'?'◌ CONNECTING…':'○ OFFLINE')}</span></header>`;
+function connectionIndicator(){
+ if(!['host','player','tv','connecting'].includes(ui.role)){
+  return ui.health==='ready'?['ready','● SERVER READY']:ui.health==='checking'?['checking','◌ CHECKING SERVER']:['offline','○ SERVER UNAVAILABLE'];
+ }
+ return ui.status==='online'?['online','● SECURE CHANNEL']:ui.status==='connecting'?['connecting','◌ CONNECTING…']:['offline','○ CONNECTION LOST'];
+}
+function refreshIndicator(){
+ const label=$('.connection');if(!label)return;
+ const [status,message]=connectionIndicator();label.className='connection '+status;label.textContent=message;
+}
+const brand=()=>{const [status,message]=connectionIndicator();return `<header class="masthead"><a class="brand" href="${esc(location.pathname)}">AD <span>ARCADE</span> / DecryptIT</a><span class="connection ${status}">${esc(message)}</span></header>`;};
+async function checkServer(){
+ if(!base){ui.health='unavailable';refreshIndicator();return;}
+ const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),8000);
+ try{
+  const response=await fetch(`${base}/health`,{cache:'no-store',signal:abort.signal});
+  const data=await response.json();
+  ui.health=response.ok&&data.service==='decryptit'&&data.wordPacksReady===true?'ready':'unavailable';
+ }catch{ui.health='unavailable';}
+ finally{clearTimeout(timeout);refreshIndicator();}
+}
 const footer=()=>`<footer class="footer">AD ARCADE ORIGINAL · NOIR EDITION · ${esc(ui.snapshot?.code||'DecryptIT')}</footer>`;
 const shell=(content,cls='')=>`<main class="wrap ${cls}">${brand()}${content}${footer()}</main>`;
 const opts=(values,selected)=>values.map(([v,n])=>`<option value="${esc(v)}" ${String(v)===String(selected)?'selected':''}>${esc(n)}</option>`).join('');
@@ -63,15 +83,15 @@ function wordGrid(s,role){const playing=s.phase==='GUESS'&&role==='operative'&&s
 function recentNotice(s){if(s.phase==='PAUSED')return `<div class="notice alert">${s.pauses.includes('HOST_OFFLINE')?'WAITING FOR HOST — game safely paused.':s.pauses.includes('SPYMASTER_OFFLINE')?'WAITING FOR SPYMASTER — game safely paused.':'GAME PAUSED — waiting for host to resume.'}</div>`;
  if(s.notice)return `<div class="notice ${s.notice.message==='TIME_UP'?'alert':''}">${esc(noticeLabels[s.notice.message]||s.notice.message)}</div>`;return '';
 }
-function history(s){return `<div class="panel"><div class="eyebrow">Eyes only · clue archive</div><h3>Clue history</h3><div class="history">${s.history?.length?s.history.map(h=>`<div class="history-entry"><span>${esc(COLOR_LABEL[h.team]||h.team)} · <b>${esc(h.word)} ${h.number}</b></span></div>`).join(''):'<p class="hint">No clues recorded yet.</p>'}</div></div>`;}
+function clueHistory(s){return `<div class="panel"><div class="eyebrow">Eyes only · clue archive</div><h3>Clue history</h3><div class="history">${s.history?.length?s.history.map(h=>`<div class="history-entry"><span>${esc(COLOR_LABEL[h.team]||h.team)} · <b>${esc(h.word)} ${h.number}</b></span></div>`).join(''):'<p class="hint">No clues recorded yet.</p>'}</div></div>`;}
 function spyControls(s){const myTurn=s.turnTeam===s.you.team&&s.phase==='CLUE';return `<div class="warning">EYES ONLY — YOU ARE A SPYMASTER. Never mirror this screen to the TV. Do not gesture, vote, or give extra hints.</div>
- <div class="panel"><div class="eyebrow">Spymaster · ${s.you.team}</div><h3>${myTurn?'Transmit a one-word clue':'Await your turn'}</h3><form id="clue-form" class="clue-form"><div><label for="clueword">Clue word</label><input id="clueword" class="input" value="${esc(ui.clueWord)}" maxlength="50" autocomplete="off" spellcheck="false" ${!myTurn?'disabled':''} placeholder="One word"></div><div><label for="cluenum">Number</label><select id="cluenum" class="select" ${!myTurn?'disabled':''}>${opts(Array.from({length:9},(_,i)=>[i+1,String(i+1)]),ui.clueNumber)}</select></div><button class="btn" type="submit" ${!myTurn?'disabled':''}>SEND CLUE</button></form><p class="hint">Clue content follows the honor system. The host can void an improper clue.</p></div>${history(s)}`;}
+ <div class="panel"><div class="eyebrow">Spymaster · ${s.you.team}</div><h3>${myTurn?'Transmit a one-word clue':'Await your turn'}</h3><form id="clue-form" class="clue-form"><div><label for="clueword">Clue word</label><input id="clueword" class="input" value="${esc(ui.clueWord)}" maxlength="50" autocomplete="off" spellcheck="false" ${!myTurn?'disabled':''} placeholder="One word"></div><div><label for="cluenum">Number</label><select id="cluenum" class="select" ${!myTurn?'disabled':''}>${opts(Array.from({length:9},(_,i)=>[i+1,String(i+1)]),ui.clueNumber)}</select></div><button class="btn" type="submit" ${!myTurn?'disabled':''}>SEND CLUE</button></form><p class="hint">Clue content follows the honor system. The host can void an improper clue.</p></div>${clueHistory(s)}`;}
 function operativeControls(s){const mine=s.turnTeam===s.you.team,guess=s.phase==='GUESS'&&mine;return `<div class="panel"><div class="eyebrow">Operative · ${s.you.team}</div><h3>${guess?'Discuss & vote':mine?'Awaiting your spymaster…':'Opponents are operating…'}</h3><p class="hint">${guess?'Tap any unrevealed word. You can change your vote until the team locks a strict majority. No past clues will be shown.':'Watch the board — you will be notified when it’s your turn.'}</p>
  <button class="btn wide ${s.you.vote==='DONE'?'secondary':'ghost'}" data-act="done" ${!guess?'disabled':''}>${s.you.vote==='DONE'?'✓ VOTED DONE':'DONE — BANK UNUSED GUESSES'} ${guess?`(${s.voteCounts.DONE||0}/${s.needed})`:''}</button>${guess&&s.you.vote!==null?'<button class="btn ghost wide" style="margin-top:10px" data-act="unvote">CLEAR MY VOTE</button>':''}</div>`;}
 function hostControls(s){return `<aside class="aside"><div class="panel"><div class="eyebrow">Director's console</div><h2>Host controls</h2><p class="hint">These controls are private to the host. The TV screen displays only public data.</p>
  <div class="control-list"><button class="btn secondary" data-act="void" ${s.phase!=='GUESS'?'disabled':''}>VOID CLUE</button><button class="btn secondary" data-act="pause" ${s.phase==='PAUSED'&&s.pauses.includes('MANUAL')?'disabled':''}>PAUSE</button><button class="btn ghost" data-act="resume" ${!s.pauses.includes('MANUAL')?'disabled':''}>RESUME</button><button class="btn ghost" data-act="swap" ${!['CLUE','GUESS','PAUSED'].includes(s.phase)?'disabled':''}>${ui.hostTool==='swap'?'TAP WORD TO SWAP':'SWAP WORD'}</button><button class="btn ghost" data-act="force" ${s.phase!=='GUESS'?'disabled':''}>${ui.hostTool==='force'?'TAP WORD TO REVEAL':'FORCE-RESOLVE'}</button><button class="btn danger" data-act="reshuffle" ${!['CLUE','GUESS','PAUSED'].includes(s.phase)?'disabled':''}>RESHUFFLE</button><button class="btn ghost" data-act="tv">OPEN TV</button><button class="btn ghost" data-act="copy">COPY INVITE</button><button class="btn secondary wide" data-act="next" ${s.phase!=='GAME_OVER'||!!s.seriesWinner?'disabled':''}>NEXT GAME →</button><button class="btn ghost wide" data-act="new_series" ${!['LOBBY','GAME_OVER'].includes(s.phase)?'disabled':''}>RESET SERIES / LOBBY</button><button class="btn danger wide" data-act="end">END SESSION</button></div>
  ${ui.hostTool?`<p class="notice">${ui.hostTool==='swap'?'Select an unrevealed card on the board to replace its word.':'Select an unrevealed card to reveal it. This bypasses voting.'} <button class="btn mini ghost" data-act="cancel_tool">CANCEL</button></p>`:''}</div>
- <div class="panel"><h3>Roster recovery</h3><p class="hint">Restore a removed seat or reassign a spymaster without touching their device.</p>${s.roster.map(p=>rosterRow(p,true,s.phase)).join('')}</div>${history(s)}</aside>`;}
+ <div class="panel"><h3>Roster recovery</h3><p class="hint">Restore a removed seat or reassign a spymaster without touching their device.</p>${s.roster.map(p=>rosterRow(p,true,s.phase)).join('')}</div>${clueHistory(s)}</aside>`;}
 function winnerSection(s,host){if(s.phase!=='GAME_OVER')return '';
  const series=s.seriesWinner;
  return `<div class="ended"><div class="eyebrow">Case closed</div><h2>${esc(COLOR_LABEL[s.winner])} team wins.</h2><p>${s.winReason==='ASSASSIN'?'The assassin was uncovered. Instant loss for the guessing team.':'All agents for the winning team were revealed.'}</p>${series?`<h3 class="gold">${esc(COLOR_LABEL[series])} WINS THE SERIES!</h3>`:'<p>Next round awaits the director.</p>'}${host?`<div class="choice-row" style="justify-content:center"><button class="btn" data-act="${series?'new_series':'next'}">${series?'NEW SERIES':'NEXT GAME →'}</button></div>`:''}</div>`;}
@@ -88,10 +108,10 @@ function render(){const root=$('#app');if(!root)return;document.body.classList.r
 async function api(path,payload){if(!base)throw Error('Server not configured — ask the host to set the Worker URL.');let res;try{res=await fetch(`${base}${path}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});}catch{throw Error('Cannot reach the game server. Check Wi-Fi or ask the host.');}
  let data;try{data=await res.json();}catch{throw Error('Game server sent an unreadable response. Retry.');}if(!res.ok)throw Error(data.error||'Server rejected request.');return data;}
 async function create(){ui.bestOf=Number($('#bestof')?.value||3);ui.timer=Number($('#turntimer')?.value||120);ui.error='';ui.role='connecting';render();
- try{const r=await api('/api/create',{mode:ui.mode,bestOf:ui.bestOf,timer:ui.timer});save(r.code,'host',r.token);ui.role='host';ui.code=r.code;ui.token=r.token;history.replaceState(null,'',`#room=${r.code}`);connect();}catch(e){ui.role=null;ui.error=e.message;render();showToast(e.message);}
+ try{const r=await api('/api/create',{mode:ui.mode,bestOf:ui.bestOf,timer:ui.timer});save(r.code,'host',r.token);ui.role='host';ui.code=r.code;ui.token=r.token;window.history.replaceState(null,'',`#room=${r.code}`);connect();}catch(e){ui.role=null;ui.error=e.message;render();showToast(e.message);}
 }
 async function join(){const name=$('#agentname')?.value?.trim()||'';const team=$('#teamjoin')?.value||'RED';if(!name){showToast('Enter your name to join.');return;}
- ui.role='connecting';render();try{const r=await api('/api/join',{code:ui.code,name,team});save(r.code,'player',r.token);ui.role='player';ui.token=r.token;ui.code=r.code;history.replaceState(null,'',`#room=${r.code}`);connect();}catch(e){ui.role='join';ui.error=e.message;render();showToast(e.message);}
+ ui.role='connecting';render();try{const r=await api('/api/join',{code:ui.code,name,team});save(r.code,'player',r.token);ui.role='player';ui.token=r.token;ui.code=r.code;window.history.replaceState(null,'',`#room=${r.code}`);connect();}catch(e){ui.role='join';ui.error=e.message;render();showToast(e.message);}
 }
 function destroy(){clearTimeout(ui.retryTimer);clearInterval(ui.ping);if(ui.connection){ui.connection.onclose=null;ui.connection.close();ui.connection=null;}}
 function connect(){destroy();if(!base){ui.error='Server URL missing. Ask the host to configure the Cloudflare Worker.';ui.status='offline';render();return;}
@@ -120,9 +140,9 @@ function handleAction(b){const a=b.dataset.act,id=b.dataset.id,s=ui.snapshot;
   case 'mode':ui.mode=b.dataset.mode;render();break;
   case 'how':ui.rules=!ui.rules;render();break;
   case 'create':create();break;
-  case 'join_form':ui.code=($('#joincode')?.value||'').toUpperCase().trim();if(!CODE.test(ui.code)){showToast('Enter a valid 6-character room code.');return;}ui.role='join';const existing=getSaved(ui.code,'player');if(existing){ui.token=existing;ui.role='player';history.replaceState(null,'',`#room=${ui.code}`);connect();}else render();break;
+  case 'join_form':ui.code=($('#joincode')?.value||'').toUpperCase().trim();if(!CODE.test(ui.code)){showToast('Enter a valid 6-character room code.');return;}ui.role='join';const existing=getSaved(ui.code,'player');if(existing){ui.token=existing;ui.role='player';window.history.replaceState(null,'',`#room=${ui.code}`);connect();}else render();break;
   case 'reconnect':connect();break;
-  case 'home':destroy();ui.role=null;ui.snapshot=null;ui.status='offline';history.replaceState(null,'',location.pathname);render();break;
+  case 'home':destroy();ui.role=null;ui.snapshot=null;ui.status='offline';window.history.replaceState(null,'',location.pathname);render();checkServer();break;
   case 'copy':copyInvite();break;
   case 'tv':window.open(urlFor(ui.code,'tv'),'_blank','noopener');break;
   case 'balance':hostAction('auto_balance');break;
@@ -154,7 +174,7 @@ window.addEventListener('online',()=>{if(ui.role&&['host','player','tv'].include
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&['host','player','tv'].includes(ui.role)&&(!ui.connection||ui.connection.readyState!==WebSocket.OPEN))connect();});
 setInterval(()=>{for(const node of document.querySelectorAll('[data-timer]')){if(!ui.snapshot)continue;const s=ui.snapshot,t=timerText(s);node.textContent=t;node.classList.toggle('urgent',t!=='∞'&&t!=='–:––'&&Number(t.split(':')[0])*60+Number(t.split(':')[1])<=15);}},400);
 function init(){const h=hashInfo();if((h.kind==='room'||h.kind==='tv')&&CODE.test(h.code)){
-  ui.code=h.code;ui.role=h.kind==='tv'?'tv':getSaved(h.code,'host')?'host':getSaved(h.code,'player')?'player':'join';ui.token=ui.role==='host'?getSaved(h.code,'host'):getSaved(h.code,'player');if(ui.role==='join')history.replaceState(null,'',`#join=${h.code}`);else connect();
- }else if(h.kind==='join'&&CODE.test(h.code)){ui.code=h.code;const token=getSaved(h.code,'player');if(token){ui.role='player';ui.token=token;history.replaceState(null,'',`#room=${h.code}`);connect();}else ui.role='join';}
- render();}
+  ui.code=h.code;ui.role=h.kind==='tv'?'tv':getSaved(h.code,'host')?'host':getSaved(h.code,'player')?'player':'join';ui.token=ui.role==='host'?getSaved(h.code,'host'):getSaved(h.code,'player');if(ui.role==='join')window.history.replaceState(null,'',`#join=${h.code}`);else connect();
+ }else if(h.kind==='join'&&CODE.test(h.code)){ui.code=h.code;const token=getSaved(h.code,'player');if(token){ui.role='player';ui.token=token;window.history.replaceState(null,'',`#room=${h.code}`);connect();}else ui.role='join';}
+ render();checkServer();}
 init();
