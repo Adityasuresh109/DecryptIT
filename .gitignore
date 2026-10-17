@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.env
+.env.*
+*.log
+tests/*-smoke.png
+tests/qr-example.svg
+tests/qr-example.png

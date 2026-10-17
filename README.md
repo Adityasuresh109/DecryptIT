@@ -9,7 +9,7 @@ A custom 5×5 word-deduction party game for 6–30 player phones, with private s
 - `frontend/index.html`, `style.css`, `app.js`, `qr.js`, `config.js`: GitHub Pages website, host console, separate read-only TV view and phone interfaces, offline QR generation.
 - `worker/index.js`: HTTP/WS transport and Durable Object, hibernatable connections, alarms and server-side authorization.
 - `worker/engine.js`: auditable game rules, zero browser dependencies.
-- `word-packs.json`: **required input; missing curated data**. JSON object with `family` and `nsfw` arrays, **exactly 400 distinct strings in each**, with no overlapping normalized words. This is imported at build time into the Worker; it is never sent to the frontend.
+- `word-packs.json`: **required input; missing curated data**. JSON object with `family` and `nsfw` arrays, **exactly 400 distinct strings in each**, with no duplicates within either list (the server handles overlapping words across packs). This is imported at build time into the Worker; it is never sent to the frontend.
 - `tests/`: deterministic engine tests, emitted-WebSocket anti-leak tests, 25-client full game and benchmark.
 
 ## Deployment (in order)
