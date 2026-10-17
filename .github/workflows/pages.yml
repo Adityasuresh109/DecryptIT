@@ -142,7 +142,7 @@ jobs:
           DEPLOYMENT_URL: ${{ steps.worker.outputs.deployment-url }}
         run: |
           python3 - <<'PY'
-          import json, os, time, urllib.request
+          import json, os, time, urllib.request, urllib.error
           page=os.environ['LIVE_PAGE'].rstrip('/')+'/'
           worker=os.environ['DEPLOYMENT_URL'].strip().split(' (',1)[0].rstrip('/')
           if not worker.startswith('https://'):
@@ -169,9 +169,17 @@ jobs:
               raise SystemExit('Published page/config mismatch after deployment. Not signed off.')
           def post(path,data):
               req=urllib.request.Request(worker+path,data=json.dumps(data).encode('utf-8'),
-                  headers={'Content-Type':'application/json','Origin':'https://adityasuresh109.github.io'},method='POST')
-              with urllib.request.urlopen(req,timeout=20) as resp:
-                  return json.load(resp)
+                  headers={'Content-Type':'application/json',
+                           'Origin':'https://adityasuresh109.github.io',
+                           'Referer':page,
+                           'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+                           'Accept':'application/json'},method='POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as resp:
+                      return json.load(resp)
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit(f'Worker POST {path} returned HTTP {exc.code}; '
+                                   f'response={exc.read(1000)!r}; headers={dict(exc.headers)}')
           created=post('/api/create',{'mode':'family','bestOf':3,'timer':120})
           if not created.get('code') or not created.get('token'):
               raise SystemExit('Live room creation failed.')
