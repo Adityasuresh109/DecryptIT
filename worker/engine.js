@@ -21,7 +21,7 @@ export function freshRoom({code,hostToken,mode='family',bestOf=3,timer=120,packs
   if(![1,3,5,7].includes(bestOf))error('Series length must be best-of 1, 3, 5 or 7.');
   if(![0,60,90,120,180].includes(timer))error('Choose a 60, 90, 120, 180 second timer, or off.');
   const words=validatePacks(packs);
-  return {code,hostToken,mode,bestOf,timer,words,deck:{family:shuffle(words.family,rand),nsfw:shuffle(words.nsfw,rand)},cycles:{family:0,nsfw:0},players:[],phase:'LOBBY',pausedPhase:null,pauses:[],remainingMs:null,deadline:null,notice:null,board:[],turnTeam:null,startingTeam:null,gameIndex:0,history:[],currentClue:null,budget:0,newRemaining:0,bankInBudget:0,bank:{RED:0,BLUE:0},votes:{},series:{RED:0,BLUE:0},winner:null,winReason:null,createdAt:now};
+  return {code,hostToken,mode,bestOf,timer,words,deck:{family:shuffle(words.family,rand),nsfw:shuffle(words.nsfw,rand)},cycles:{family:0,nsfw:0},players:[],usedWords:[],phase:'LOBBY',pausedPhase:null,pauses:[],remainingMs:null,deadline:null,notice:null,board:[],turnTeam:null,startingTeam:null,gameIndex:0,history:[],currentClue:null,budget:0,newRemaining:0,bankInBudget:0,bank:{RED:0,BLUE:0},votes:{},series:{RED:0,BLUE:0},winner:null,winReason:null,createdAt:now};
 }
 export function livePlayers(r){return r.players.filter(p=>!p.removed)}
 export function onlineOperatives(r,t){return livePlayers(r).filter(p=>p.team===t&&p.role==='OPERATIVE'&&p.online)}
@@ -38,10 +38,23 @@ export function validation(r){
   }
 }
 function draw(r,category,avoid=new Set(),rand=Math.random){
-  for(let i=0;i<2;i++){
-    while(r.deck[category].length){const candidate=r.deck[category].pop();if(!avoid.has(normWord(candidate)))return candidate;}
+  // Track normalized words globally: both packs can contain the same word.
+  // Skipping a candidate never consumes its right to appear after a pack cycle.
+  const used=r.usedWords||(r.usedWords=[]);
+  let seen=new Set(used);
+  for(let attempt=0;attempt<3;attempt++){
+    while(r.deck[category].length){
+      const candidate=r.deck[category].pop(),key=normWord(candidate);
+      if(!avoid.has(key)&&!seen.has(key)){used.push(key);return candidate;}
+    }
     r.cycles[category]++;
-    r.deck[category]=shuffle(r.words[category].filter(w=>!avoid.has(normWord(w))),rand);
+    let available=r.words[category].filter(w=>!avoid.has(normWord(w))&&!seen.has(normWord(w)));
+    if(!available.length){
+      // Every usable word in this pack was already drawn. A new cycle begins.
+      used.length=0;seen=new Set();
+      available=r.words[category].filter(w=>!avoid.has(normWord(w)));
+    }
+    r.deck[category]=shuffle(available,rand);
   }
   error(`No unused ${category} words remain for this board.`);
 }
