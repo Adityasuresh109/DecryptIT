@@ -101,8 +101,8 @@ jobs:
           else:
               raise SystemExit('Worker health did not confirm DecryptIT + 800 curated words. Refusing to publish.')
           pathlib.Path('frontend/config.js').write_text(
-              '// Generated at release from actual Wrangler deployment URL.\\nwindow.DECRYPTIT_WORKER_URL = ' +
-              json.dumps(base) + ';\\n', encoding='utf-8')
+              '// Generated at release from actual Wrangler deployment URL.\nwindow.DECRYPTIT_WORKER_URL = ' +
+              json.dumps(base) + ';\n', encoding='utf-8')
           print('Worker:',base,'health:',status)
           PY
 
