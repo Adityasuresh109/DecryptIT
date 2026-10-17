@@ -106,6 +106,24 @@ jobs:
           print('Worker:',base,'health:',status)
           PY
 
+      - name: Verify generated config is executable JavaScript
+        run: |
+          node --check frontend/config.js
+          node - <<'JS'
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const raw = fs.readFileSync('frontend/config.js', 'utf8');
+          if (!raw.includes('\nwindow.DECRYPTIT_WORKER_URL = ') || raw.includes('\\n')) {
+            throw new Error('Worker config contains literal escaped newlines, not real line breaks.');
+          }
+          const context = {window:{}};
+          vm.runInNewContext(raw, context);
+          if (!/^https:\/\/[^/]+\.workers\.dev$/.test(context.window.DECRYPTIT_WORKER_URL)) {
+            throw new Error('Worker URL is not an HTTPS workers.dev endpoint.');
+          }
+          console.log('Verified executable config assignment to', context.window.DECRYPTIT_WORKER_URL);
+          JS
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
@@ -117,6 +135,51 @@ jobs:
       - name: Publish GitHub Pages
         id: pages
         uses: actions/deploy-pages@v4
+
+      - name: Verify public config bytes and live room create/join
+        env:
+          LIVE_PAGE: ${{ steps.pages.outputs.page_url }}
+          DEPLOYMENT_URL: ${{ steps.worker.outputs.deployment-url }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          page=os.environ['LIVE_PAGE'].rstrip('/')+'/'
+          worker=os.environ['DEPLOYMENT_URL'].strip().split(' (',1)[0].rstrip('/')
+          if not worker.startswith('https://'):
+              worker='https://'+worker
+          def get(url):
+              req=urllib.request.Request(url, headers={'Cache-Control':'no-cache', 'User-Agent':'DecryptIT-Smoke/1.0'})
+              with urllib.request.urlopen(req,timeout=20) as resp:
+                  return resp.read()
+          expected=f'window.DECRYPTIT_WORKER_URL = {json.dumps(worker)};'
+          for attempt in range(1,13):
+              try:
+                  page_html=get(page+'?sha='+os.environ['GITHUB_SHA']).decode('utf-8')
+                  config=get(page+'config.js?sha='+os.environ['GITHUB_SHA']).decode('utf-8')
+                  if '<title>DecryptIT' in page_html and '\n'+expected in config and '\\n' not in config:
+                      print('Verified published config.js actual newlines on attempt',attempt,flush=True)
+                      break
+                  print('Pages propagation attempt',attempt,'HTML title matches?', '<title>DecryptIT' in page_html,
+                        'assignment after real newline?', '\n'+expected in config,
+                        'contains bad literal escapes?', '\\n' in config,flush=True)
+              except Exception as exc:
+                  print('Pages propagation attempt',attempt,'failed:',type(exc).__name__,str(exc),flush=True)
+              time.sleep(5)
+          else:
+              raise SystemExit('Published page/config mismatch after deployment. Not signed off.')
+          def post(path,data):
+              req=urllib.request.Request(worker+path,data=json.dumps(data).encode('utf-8'),
+                  headers={'Content-Type':'application/json','Origin':'https://adityasuresh109.github.io'},method='POST')
+              with urllib.request.urlopen(req,timeout=20) as resp:
+                  return json.load(resp)
+          created=post('/api/create',{'mode':'family','bestOf':3,'timer':120})
+          if not created.get('code') or not created.get('token'):
+              raise SystemExit('Live room creation failed.')
+          joined=post('/api/join',{'code':created['code'],'name':'Release QA'})
+          if joined.get('code')!=created['code'] or not joined.get('token'):
+              raise SystemExit('Live room join failed.')
+          print('Verified live Worker create/join for room',created['code'],flush=True)
+          PY
 
       - name: Record deployed addresses
         env:
