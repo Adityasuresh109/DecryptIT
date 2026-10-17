@@ -78,7 +78,7 @@ test('spymaster/host loss pauses and respective reconnect unpauses, host recover
  assert.equal(r.phase,'PAUSED');assert.ok(r.pauses.includes('SPYMASTER_OFFLINE'));
  await auth(spy.token);assert.equal(r.phase,'GUESS');
  await action(host,{type:'pause'});assert.equal(r.phase,'PAUSED');await action(host,{type:'resume'});assert.equal(r.phase,'GUESS');
- const before=r.board.find(c=>!c.revealed),original=before.word;
+ const before=r.board.find(c=>!c.revealed&&c.color===r.turnTeam),original=before.word; // Never pick the assassin: this test exercises recovery controls, not terminal win rules.
  await action(host,{type:'swap_word',cardId:before.id});assert.notEqual(before.word,original);
  await action(host,{type:'force_resolve',cardId:before.id});assert.equal(before.revealed,true);
  await action(host,{type:'void_clue'});assert.equal(r.phase,'CLUE');
