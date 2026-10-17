@@ -6,7 +6,7 @@ const CODE=/^[A-HJ-NP-Z2-9]{6}$/;
 const MODE_LABEL={family:'Family Friendly',nsfw:'NSFW',mixed:'Mixed Bag'};
 const COLOR_LABEL={RED:'Red',BLUE:'Blue',BYSTANDER:'Civilian',ASSASSIN:'Assassin'};
 const noticeLabels={TIME_UP:'TIME’S UP — TURN PASSED',ASSASSIN:'ASSASSIN FOUND',CLUE_VOIDED:'CLUE VOIDED — TURN PASSED',WRONG_CARD:'WRONG CARD — TURN PASSED',BUDGET_EXHAUSTED:'NO GUESSES REMAIN — TURN PASSED',TEAM_DONE:'TEAM DONE — GUESSES BANKED',RESHUFFLED:'NEW BOARD — FRESH START'};
-const base=(window.AGENCY_WORKER_URL||'').replace(/\/$/,'');
+const base=(window.DECRYPTIT_WORKER_URL||window.AGENCY_WORKER_URL||'').replace(/\/$/,'');
 const ui={mode:'family',bestOf:3,timer:120,rules:false,role:null,code:'',token:'',screen:null,snapshot:null,status:'offline',error:'',hostTool:null,clueWord:'',clueNumber:2,connection:null,retry:0,retryTimer:null,ping:null,serverSkew:0};
 const hashInfo=()=>{const hash=decodeURIComponent(location.hash.slice(1));const i=hash.indexOf('=');return i>0?{kind:hash.slice(0,i),code:hash.slice(i+1).trim().toUpperCase()}:{kind:null,code:''};};
 const urlFor=(code,kind='join')=>`${location.origin}${location.pathname}#${kind}=${code}`;
@@ -14,13 +14,13 @@ const storageKey=(code,role)=>`agency:${code}:${role}`;
 const getSaved=(code,role)=>{try{return localStorage.getItem(storageKey(code,role));}catch{return null;}};
 const save=(code,role,token)=>{try{localStorage.setItem(storageKey(code,role),token);}catch{showToast('Storage blocked — refresh may lose your seat. Allow site storage.');}};
 function showToast(message){const el=$('#toast');if(!el)return;el.textContent=message;el.hidden=false;clearTimeout(showToast.timeout);showToast.timeout=setTimeout(()=>{el.hidden=true;},8500);}
-const brand=()=>`<header class="masthead"><a class="brand" href="${esc(location.pathname)}">AD <span>ARCADE</span> / THE AGENCY</a><span class="connection ${ui.status}">${esc(ui.status==='online'?'● SECURE CHANNEL':ui.status==='connecting'?'◌ CONNECTING…':'○ OFFLINE')}</span></header>`;
-const footer=()=>`<footer class="footer">AD ARCADE ORIGINAL · NOIR EDITION · ${esc(ui.snapshot?.code||'THE AGENCY')}</footer>`;
+const brand=()=>`<header class="masthead"><a class="brand" href="${esc(location.pathname)}">AD <span>ARCADE</span> / DecryptIT</a><span class="connection ${ui.status}">${esc(ui.status==='online'?'● SECURE CHANNEL':ui.status==='connecting'?'◌ CONNECTING…':'○ OFFLINE')}</span></header>`;
+const footer=()=>`<footer class="footer">AD ARCADE ORIGINAL · NOIR EDITION · ${esc(ui.snapshot?.code||'DecryptIT')}</footer>`;
 const shell=(content,cls='')=>`<main class="wrap ${cls}">${brand()}${content}${footer()}</main>`;
 const opts=(values,selected)=>values.map(([v,n])=>`<option value="${esc(v)}" ${String(v)===String(selected)?'selected':''}>${esc(n)}</option>`).join('');
-const missing=()=>!base?`<div class="error">Game server is not configured. Set AGENCY_WORKER_URL in frontend/config.js to the deployed Cloudflare Worker HTTPS URL.</div>`:'';
+const missing=()=>!base?`<div class="error">Game server is not configured. Set DECRYPTIT_WORKER_URL in frontend/config.js to the deployed Cloudflare Worker HTTPS URL.</div>`:'';
 const heading=(text,sub)=>`<div class="eyebrow">${esc(sub)}</div><h1>${esc(text)}</h1>`;
-function landing(){return shell(`<section class="hero"><div class="eyebrow">Top secret · word operations</div><h1>The Agency.</h1><p>One clue. Twenty-five secrets. Your team decides what gets revealed.</p></section>
+function landing(){return shell(`<section class="hero"><div class="eyebrow">Top secret · word operations</div><h1>DecryptIT</h1><p>One clue. Twenty-five secrets. Your team decides what gets revealed.</p></section>
  <section class="pack-cards" aria-label="Word pack selection">${[
   ['family','◇','Family Friendly','Clean words. Sharp minds. Everybody plays.'],['nsfw','✦','NSFW','The after-dark file. Adults only.'],['mixed','◈','Mixed Bag','10–15 after-dark words, the rest clean. Every game different.']
  ].map(([id,sym,label,desc])=>`<button class="pack ${ui.mode===id?'selected':''}" data-act="mode" data-mode="${id}" aria-pressed="${ui.mode===id}"><span class="symbol">${sym}</span><b>${label}</b><small>${desc}</small></button>`).join('')}</section>
@@ -76,7 +76,7 @@ function winnerSection(s,host){if(s.phase!=='GAME_OVER')return '';
  const series=s.seriesWinner;
  return `<div class="ended"><div class="eyebrow">Case closed</div><h2>${esc(COLOR_LABEL[s.winner])} team wins.</h2><p>${s.winReason==='ASSASSIN'?'The assassin was uncovered. Instant loss for the guessing team.':'All agents for the winning team were revealed.'}</p>${series?`<h3 class="gold">${esc(COLOR_LABEL[series])} WINS THE SERIES!</h3>`:'<p>Next round awaits the director.</p>'}${host?`<div class="choice-row" style="justify-content:center"><button class="btn" data-act="${series?'new_series':'next'}">${series?'NEW SERIES':'NEXT GAME →'}</button></div>`:''}</div>`;}
 function game(s){const role=s.you.host?'host':s.you.tv?'tv':s.you.role==='SPYMASTER'?'spymaster':'operative';document.body.classList.toggle('tv-mode',role==='tv');
- return shell(`<div class="row between"><div><div class="eyebrow">Operation ${esc(s.code)} · ${esc(MODE_LABEL[s.mode])}</div><h1 style="margin:5px 0 12px">The Agency.</h1></div><span class="preview-tag">${s.phase==='PAUSED'?'HOLD':'GAME '+s.gameIndex}</span></div>
+ return shell(`<div class="row between"><div><div class="eyebrow">Operation ${esc(s.code)} · ${esc(MODE_LABEL[s.mode])}</div><h1 style="margin:5px 0 12px">DecryptIT</h1></div><span class="preview-tag">${s.phase==='PAUSED'?'HOLD':'GAME '+s.gameIndex}</span></div>
  ${scoreboard(s)}${recentNotice(s)}${banner(s)}${winnerSection(s,role==='host')}
  <div class="stage ${role==='tv'?'full':''}"><section><div class="panel" style="padding:clamp(8px,2vw,20px)">${wordGrid(s,role)}</div>${role==='operative'?operativeControls(s):''}${role==='spymaster'?spyControls(s):''}${role==='tv'?`<p class="hint">PUBLIC VIEW · NO SECRET KEY · Recruit with room code <b>${esc(s.code)}</b></p>`:''}</section>${role==='host'?hostControls(s):''}</div>`,role==='tv'?'tv-wrap':'');}
 function removedScreen(s){return shell(`${heading('Seat temporarily inactive','Host recovery')}<div class="panel"><p>The host removed your seat. Your token remains saved; ask the host to restore you.</p><button class="btn secondary" data-act="reconnect">RECONNECT</button></div>`);}

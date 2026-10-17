@@ -21,7 +21,7 @@ export default {
   if(request.method==='OPTIONS')return cors(new Response(null,{status:204}),origin);
   if(url.pathname==='/health'){
    let available=false;try{validatePacks(curatedPacks);available=true;}catch{}
-   return cors(json({ok:true,service:'the-agency',version:'0.1.0',wordPacksReady:available}),origin);
+   return cors(json({ok:true,service:'decryptit',version:'0.1.0',wordPacksReady:available}),origin);
   }
   if(url.pathname==='/api/socket'){
    const roomCode=(url.searchParams.get('code')||'').toUpperCase();

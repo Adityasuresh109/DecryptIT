@@ -1,4 +1,4 @@
-name: Deploy Agency Worker
+name: Deploy DecryptIT Worker
 on:
   workflow_dispatch:
 permissions:
