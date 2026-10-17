@@ -1,29 +1,111 @@
-name: Deploy AD Arcade page
+name: Release The Agency (Worker + Pages)
+
 on:
   push:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'worker/**'
+      - 'tests/**'
+      - 'word-packs.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
-  group: github-pages
+  group: decryptit-agency-production
   cancel-in-progress: true
+
 jobs:
-  pages:
+  release:
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    runs-on: ubuntu-latest
+      url: ${{ steps.pages.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Checkout audited source
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Gameplay, word pack, privacy and reconnect tests
+        run: npm test
+
+      - name: Twenty-five player simulated load check
+        run: npm run load
+
+      - name: Require Cloudflare deployment credentials
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$ACCOUNT" ]; then
+            echo "::error::DecryptIT needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID GitHub Actions secrets before the Worker can deploy."
+            exit 1
+          fi
+
+      - name: Deploy Cloudflare Worker and Durable Object
+        id: worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config worker/wrangler.jsonc
+
+      - name: Verify live Worker and configure static site
+        env:
+          DEPLOYMENT_URL: ${{ steps.worker.outputs.deployment-url }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, urllib.request, urllib.parse
+          raw = os.environ.get('DEPLOYMENT_URL','').strip()
+          # Some action versions add " (custom domain)" after the URL.
+          raw = raw.split(' (',1)[0].strip()
+          if raw and not raw.startswith(('http://','https://')):
+              raw = 'https://' + raw
+          parsed = urllib.parse.urlparse(raw)
+          if parsed.scheme != 'https' or not parsed.netloc or parsed.username or parsed.password or parsed.path not in ('','/'):
+              raise SystemExit('Cloudflare did not provide a usable HTTPS deployment URL. Do not publish a disconnected frontend.')
+          base = f'https://{parsed.netloc}'
+          with urllib.request.urlopen(f'{base}/health', timeout=25) as resp:
+              status = json.load(resp)
+          if status.get('service') != 'the-agency' or status.get('wordPacksReady') is not True:
+              raise SystemExit('Worker health did not confirm The Agency + 800 curated words. Refusing to publish.')
+          pathlib.Path('frontend/config.js').write_text(
+              '// Generated at release from actual Wrangler deployment URL.\\nwindow.AGENCY_WORKER_URL = ' +
+              json.dumps(base) + ';\\n', encoding='utf-8')
+          print('Worker:',base,'health:',status)
+          PY
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Package configured static site
+        uses: actions/upload-pages-artifact@v3
         with:
           path: frontend
-      - id: deploy
+
+      - name: Publish GitHub Pages
+        id: pages
         uses: actions/deploy-pages@v4
+
+      - name: Record deployed addresses
+        env:
+          LIVE_PAGE: ${{ steps.pages.outputs.page_url }}
+          DEPLOYMENT_URL: ${{ steps.worker.outputs.deployment-url }}
+        run: |
+          echo "### The Agency live deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "Site: $LIVE_PAGE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Cloudflare: $DEPLOYMENT_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source revision: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Simulated acceptance suite passed. Physical iOS/Android venue testing remains a separate release gate." >> "$GITHUB_STEP_SUMMARY"
