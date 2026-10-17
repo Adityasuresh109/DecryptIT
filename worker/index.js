@@ -166,7 +166,7 @@ export class AgencyRoom {
    case 'swap_word':swapWord(r,m.cardId,secureRandom);break;
    case 'reshuffle':
     if(!['CLUE','GUESS','PAUSED'].includes(r.phase))error('Only a running game can be reshuffled.');
-    r.phase='LOBBY';r.pauses=[];r.pausedPhase=null;startGame(r,secureRandom);r.notice={message:'RESHUFFLED',at:Date.now()};break;
+    r.phase='LOBBY';r.pauses=[];r.pausedPhase=null;r.gameIndex=Math.max(0,r.gameIndex-1);startGame(r,secureRandom);r.notice={message:'RESHUFFLED',at:Date.now()};break;
    case 'pause':if(!['CLUE','GUESS','PAUSED'].includes(r.phase))error('No active game to pause.');setPause(r,'MANUAL',true);break;
    case 'resume':setPause(r,'MANUAL',false);break;
    case 'remove_player':if(!p||p.removed)error('Choose an active player.');p.removed=true;p.online=false;delete r.votes[p.id];evaluateVotes(r);break;

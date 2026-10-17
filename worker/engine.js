@@ -28,6 +28,7 @@ export function onlineOperatives(r,t){return livePlayers(r).filter(p=>p.team===t
 export function majority(r,t){return Math.floor(onlineOperatives(r,t).length/2)+1;}
 export function validation(r){
   const p=livePlayers(r);if(p.length<MIN_PLAYERS)error('Need at least 6 players: 1 spymaster and 2 operatives per team.');
+  if(Math.abs(p.filter(x=>x.team==='RED').length-p.filter(x=>x.team==='BLUE').length)>1)error('Teams must be balanced within one player. Ask the host to auto-balance, then assign spymasters.');
   for(const t of TEAMS){
     const s=p.filter(x=>x.team===t&&x.role==='SPYMASTER');
     const op=p.filter(x=>x.team===t&&x.role==='OPERATIVE');

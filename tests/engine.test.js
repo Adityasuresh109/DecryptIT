@@ -125,3 +125,8 @@ test('input validation refuses invalid single-token clues, amounts and phases',(
  sendClue(r,spy(r,t),'Valid',1);
  assert.throws(()=>sendClue(r,spy(r,t),'ValidAgain',1),/during GUESS/);
 });
+
+test('start requires even Red/Blue team count without overriding host-designated roles',()=>{
+ const r=setup(8);r.phase='LOBBY';r.players[2].team='BLUE';
+ assert.throws(()=>validation(r),/balanced within one player/);
+});

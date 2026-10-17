@@ -47,7 +47,7 @@ Host force-resolve intentionally bypasses the usual majority lock as an explicit
 - **The supplied bank example has an arithmetic contradiction**: a clue of 3 followed by *one correct card plus one bystander* consumes 2 guesses, therefore the unused bank must be **1**, not 2. Rules (§2.5) are authoritative. Automated tests assert bank=1. If the intent is to bank 2, one of those two reveals must not spend a guess (requires a revised rule).
 - No +1, no 0/unlimited clue, no official foul bonus, no co-op mode.
 - `publicSnapshot()` includes full clue history to **spymasters and host console**, but not operatives and not TV. No hidden board colors on the host console either.
-- Host `reshuffle` aborts the current game without awarding a point, uses fresh words/key, keeps series score, and restarts that game. Host `new_series` zeros series score and returns to lobby; removed seats may be restored from the roster.
+- Host `reshuffle` aborts the current game without awarding a point, uses fresh words/key, keeps series score, and restarts that game without advancing its game number. Host `new_series` zeros series score and returns to lobby; removed seats may be restored from the roster.
 - **Pending:** original word pack, real Cloudflare deploy, Pages enablement, live Worker protocol audit, real iOS Safari/Android Chrome device console/network checks, venue Wi-Fi 25-client soak, Zuko's independent sign-off. No 'production-ready' claim until these pass.
 
 ## License / scope

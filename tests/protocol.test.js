@@ -86,7 +86,7 @@ test('spymaster/host loss pauses and respective reconnect unpauses, host recover
  await action(host,{type:'set_spymaster',playerId:newP.id});assert.equal(newP.role,'SPYMASTER');
  await action(host,{type:'remove_player',playerId:newP.id});assert.equal(newP.removed,true);
  await action(host,{type:'restore_player',playerId:newP.id});assert.equal(newP.removed,false);
- await action(host,{type:'reshuffle'});assert.equal(r.phase,'CLUE');assert.equal(r.board.length,25);
+ const beforeIndex=r.gameIndex;await action(host,{type:'reshuffle'});assert.equal(r.phase,'CLUE');assert.equal(r.board.length,25);assert.equal(r.gameIndex,beforeIndex);
 });
 
 test('unauthorized protocol messages get actionable errors but do not mutate room',async()=>{
