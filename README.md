@@ -2,7 +2,7 @@
 
 A custom 5×5 word-deduction party game for 6–30 player phones, with private spymaster keys, connected-operative majority voting, guess banking, clue memory restrictions, host recovery, and best-of series. Static frontend + Cloudflare Worker / SQLite Durable Object.
 
-> **DEPLOYMENT / SAFETY STATUS — NOT READY FOR A LIVE PARTY YET.** The user-curated `word-packs.json` was not attached to the build brief or present in this repository. The checked-in file is an intentionally EMPTY placeholder. The backend rejects room creation until the **original curated 400 Family + 400 NSFW words** are supplied verbatim. The worker has not been deployed or tested on a real Cloudflare deployment. iOS Safari and Android Chrome physical-device acceptance are pending. Simulated protocol tests **do not** count as that sign-off.
+> **DEPLOYMENT / SAFETY STATUS — NOT READY FOR A LIVE PARTY YET.** Zuko supplied the curated `word-packs.json` (400 Family + 400 NSFW words); validation passes for both lists. The 30 overlapping normalized words between packs are allowed and the server prevents early repeat draws across packs. The Worker has not yet been verified on a real Cloudflare deployment; `frontend/config.js` still requires the live Worker URL. iOS Safari and Android Chrome physical-device acceptance are pending. Simulated protocol tests **do not** count as that sign-off.
 
 ## Repository layout
 
@@ -14,7 +14,7 @@ A custom 5×5 word-deduction party game for 6–30 player phones, with private s
 
 ## Deployment (in order)
 
-1. **Supply the original word packs.** Replace `word-packs.json` with the exact provided 800 curated words. Do not edit or generate substitute words. `npm test` checks sample synthetic fixtures separately, NOT the user's production pack. The `/health` endpoint reports `wordPacksReady: true` only after a complete input file passes validation.
+1. **Curated word packs: completed.** Zuko's original `word-packs.json` is checked in (400 Family + 400 NSFW); do not edit or regenerate any entries. `npm test` now includes a production-file integrity check and Mixed Bag boards drawn directly from the curated pack, plus synthetic overlap regression tests. A deployed `/health` endpoint must return `wordPacksReady: true`.
 2. Connect Cloudflare and deploy from the repository root:
 
    ```bash
@@ -30,7 +30,7 @@ A custom 5×5 word-deduction party game for 6–30 player phones, with private s
 
 ## Local development / verification
 
-`npm test` runs pure game tests, 25-client complete-victory mock WebSocket E2E, audience-filter validation on every emitted snapshot, recovery actions, spymaster/host reconnect, and QR generator unit tests. `npm run load` performs five 25-client full-game mock runs and reports elapsed time. Neither command simulates actual venue Wi-Fi nor makes an external Worker deployment.
+`npm test` runs curated production-pack validation and pure game tests, 25-client complete-victory mock WebSocket E2E, audience-filter validation on every emitted snapshot, recovery actions, spymaster/host reconnect, and QR generator unit tests. `npm run load` performs five 25-client full-game mock runs and reports elapsed time. Neither command simulates actual venue Wi-Fi nor makes an external Worker deployment.
 
 The frontend can be visually previewed using a local static server (`python3 -m http.server -d frontend 8000`). To play, a deployed Worker URL and the 800-word pack are required. Refresh/reconnect on the same origin retains the seat token in browser `localStorage`; browsers configured to block storage may not restore a seat automatically, and show a visible warning.
 
@@ -48,7 +48,7 @@ Host force-resolve intentionally bypasses the usual majority lock as an explicit
 - No +1, no 0/unlimited clue, no official foul bonus, no co-op mode.
 - `publicSnapshot()` includes full clue history to **spymasters and host console**, but not operatives and not TV. No hidden board colors on the host console either.
 - Host `reshuffle` aborts the current game without awarding a point, uses fresh words/key, keeps series score, and restarts that game without advancing its game number. Host `new_series` zeros series score and returns to lobby; removed seats may be restored from the roster.
-- **Pending:** original word pack, real Cloudflare deploy, Pages enablement, live Worker protocol audit, real iOS Safari/Android Chrome device console/network checks, venue Wi-Fi 25-client soak, Zuko's independent sign-off. No 'production-ready' claim until these pass.
+- **Completed:** original curated 400 + 400 word pack, production-pack integrity tests, and cross-pack overlap protection. **Pending:** real Cloudflare deploy, Pages enablement, live Worker protocol audit, real iOS Safari/Android Chrome device console/network checks, venue Wi-Fi 25-client soak, Zuko's independent sign-off. No 'production-ready' claim until these pass.
 
 ## License / scope
 
