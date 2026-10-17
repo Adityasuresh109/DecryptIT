@@ -77,9 +77,28 @@ jobs:
           if parsed.scheme != 'https' or not parsed.netloc or parsed.username or parsed.password or parsed.path not in ('','/'):
               raise SystemExit('Cloudflare did not provide a usable HTTPS deployment URL. Do not publish a disconnected frontend.')
           base = f'https://{parsed.netloc}'
-          with urllib.request.urlopen(f'{base}/health', timeout=25) as resp:
-              status = json.load(resp)
-          if status.get('service') != 'the-agency' or status.get('wordPacksReady') is not True:
+          import time, urllib.error
+          status = None
+          for attempt in range(1, 13):
+              try:
+                  request = urllib.request.Request(f'{base}/health', headers={
+                      'User-Agent': 'TheAgency-Release-Check/1.0',
+                      'Accept': 'application/json'
+                  })
+                  with urllib.request.urlopen(request, timeout=20) as resp:
+                      status = json.load(resp)
+                  if status.get('service') == 'the-agency' and status.get('wordPacksReady') is True:
+                      print(f'Production Worker ready on attempt {attempt}', flush=True)
+                      break
+                  print(f'Attempt {attempt}: unexpected health: {status}', flush=True)
+              except urllib.error.HTTPError as exc:
+                  print(f'Attempt {attempt}: HTTP {exc.code}; headers={dict(exc.headers)}; '
+                        f'body={exc.read(600)!r}', flush=True)
+              except Exception as exc:
+                  print(f'Attempt {attempt}: {type(exc).__name__}: {exc}', flush=True)
+              if attempt < 12:
+                  time.sleep(5)
+          else:
               raise SystemExit('Worker health did not confirm The Agency + 800 curated words. Refusing to publish.')
           pathlib.Path('frontend/config.js').write_text(
               '// Generated at release from actual Wrangler deployment URL.\\nwindow.AGENCY_WORKER_URL = ' +
