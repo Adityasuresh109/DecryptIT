@@ -124,6 +124,23 @@ jobs:
           console.log('Verified executable config assignment to', context.window.DECRYPTIT_WORKER_URL);
           JS
 
+      - name: Version static assets to avoid cached mobile scripts
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          index=Path('frontend/index.html')
+          content=index.read_text(encoding='utf-8')
+          rev=os.environ['GITHUB_SHA'][:12]
+          for asset in ('./style.css','./config.js','./app.js'):
+              old=f'"{asset}"'
+              if old not in content:
+                  raise SystemExit(f'Missing {asset} in frontend HTML')
+              content=content.replace(old,f'"{asset}?rev={rev}"')
+          index.write_text(content,encoding='utf-8')
+          print('Versioned frontend assets for release',rev)
+          PY
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
@@ -156,7 +173,7 @@ jobs:
               try:
                   page_html=get(page+'?sha='+os.environ['GITHUB_SHA']).decode('utf-8')
                   config=get(page+'config.js?sha='+os.environ['GITHUB_SHA']).decode('utf-8')
-                  if '<title>DecryptIT' in page_html and '\n'+expected in config and '\\n' not in config:
+                  if '<title>DecryptIT' in page_html and ('./app.js?rev='+os.environ['GITHUB_SHA'][:12]) in page_html and '\n'+expected in config and '\\n' not in config:
                       print('Verified published config.js actual newlines on attempt',attempt,flush=True)
                       break
                   print('Pages propagation attempt',attempt,'HTML title matches?', '<title>DecryptIT' in page_html,
